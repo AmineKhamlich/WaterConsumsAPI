@@ -1,0 +1,5 @@
+@WConsumsAPI_HostAddress = http://localhost:5193
+
+GET {{WConsumsAPI_HostAddress}}/api/dimcnt
+
+###
