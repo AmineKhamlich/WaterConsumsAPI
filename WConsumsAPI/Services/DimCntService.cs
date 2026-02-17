@@ -2,9 +2,6 @@
 using WConsumsAPI.DTOs; // Per utilitzar els objectes de transferència (DTOs).
 using WConsumsAPI.Models; // Per accedir a les entitats reals de la base de dades.
 using Microsoft.EntityFrameworkCore; // Per utilitzar funcions com ToListAsync().
-using System.Collections.Generic; // Per gestionar llistes.
-using System.Linq; // Per fer consultes i transformacions (Select).
-using System.Threading.Tasks; // Per operacions asíncrones.
 
 namespace WConsumsAPI.Services
 {
@@ -14,11 +11,11 @@ namespace WConsumsAPI.Services
     public class DimCntService : IDimCntService
     {
         // Variable privada per guardar la referència al context de dades.
-        private readonly AppDbContext _context;
+        private readonly AppDbContextDW _context;
 
         // CONSTRUCTOR: Rep el context per Injecció de Dependències.
         // Quan l'aplicació arranca, .NET automàticament ens passa el context aquí.
-        public DimCntService(AppDbContext context)
+        public DimCntService(AppDbContextDW context)
         {
             _context = context; // Guardem el context per usar-lo als mètodes.
         }
@@ -28,7 +25,10 @@ namespace WConsumsAPI.Services
         {
             // 1. Demanem a la Base de Dades tots els registres de la taula DimCnts.
             // Fem servir 'await' per no bloquejar l'aplicació mentre esperem la BD.
-            var entities = await _context.DimCnts.ToListAsync();
+            var entities = await _context.DimCnts
+                .FromSqlRaw(
+                    "EXEC sp_DimCnt_GetAll")
+                .ToListAsync();
             
             // 2. Transformem (Select) cada entitat de BD en un DTO.
             // Això evita enviar camps innecessaris a l'usuari.
@@ -37,17 +37,23 @@ namespace WConsumsAPI.Services
                 ID = e.ID,          // Copiem l'ID
                 Descripcio = e.Descripcio, // Copiem la descripció
                 Planta = e.Planta,  // Copiem la planta
-                TagName = e.TagName // Copiem el TagName
+                TagName = e.TagName, // Copiem el TagName
+                SP_H_ACUM = e.SP_H_ACUM // Copiem el SP_H_ACUM
             }).ToList(); // Convertim el resultat final en una llista.
         }
 
         // Mètode per obtenir un registre per ID.
         public async Task<DimCntDto?> GetByIdAsync(int id)
         {
-            // Busquem a la BD pel seu ID (Primary Key).
-            var entity = await _context.DimCnts.FindAsync(id);
-            
-            // Si no el troba, retornem null immediatament.
+            // 1. Executem l'SP i portem el resultat a memòria (.ToList)
+            // El .ToListAsync() és clau per evitar l'error de sintaxi SQL.
+            var entities = await _context.DimCnts
+                .FromSqlRaw(
+                    "EXEC sp_DimCnt_GetById @ID = {0}", id)
+                .ToListAsync();
+            // 2. Agafem el primer (o null si no n'hi ha) de la llista en memòria
+            var entity = entities.FirstOrDefault();
+            // 3. Si no existeix, retornem null
             if (entity == null) return null;
 
             // Si el troba, el convertim a DTO i el retornem.
@@ -56,85 +62,66 @@ namespace WConsumsAPI.Services
                 ID = entity.ID,
                 Descripcio = entity.Descripcio,
                 Planta = entity.Planta,
-                TagName = entity.TagName
+                TagName = entity.TagName,
+                SP_H_ACUM = entity.SP_H_ACUM
             };
         }
 
-        // Mètode per crear un nou registre.
-        public async Task<DimCntDto> CreateAsync(DimCntDto dto)
+        // Mètode per obtenir registres per planta.
+        public async Task<List<DimCntDto>> GetByPlantaAsync(string planta)
         {
-            // Creem una nova entitat de BD a partir de les dades del DTO.
-            var entity = new DimCnt
+            // 1. Executem l'SP i portem el resultat a memòria (.ToList)
+            var entities = await _context.DimCnts
+                .FromSqlRaw(
+                    "EXEC sp_DimCnt_GetByPlanta @Planta = {0}", planta)
+                .ToListAsync();
+            // 2. Convertim cada entitat a DTO i retornem la llista.
+            return entities.Select(e => new DimCntDto
             {
-                // NO assignem ID perquè normalment s'autogenera.
-                Descripcio = dto.Descripcio,
-                Planta = dto.Planta,
-                TagName = dto.TagName,
-                
-                // Assignem valors per defecte a camps obligatoris de la BD que no demanem al DTO.
-                // Això evita errors d'inserció SQL.
-                SourceID = 0,
-                QuantityID = 0,
-                TotalPlanta = 0,
-                Final = 0
-            };
-
-            // Afegim l'entitat al context (memòria).
-            _context.DimCnts.Add(entity);
-            
-            // Guardem els canvis a la BD real. Aquí s'executa l'INSERT.
-            await _context.SaveChangesAsync();
-
-            // Mirem quin ID li ha assignat la BD i l'actualitzem al DTO per retornar-lo.
-            dto.ID = entity.ID; 
-            return dto;
+                ID = e.ID,
+                Descripcio = e.Descripcio,
+                Planta = e.Planta,
+                TagName = e.TagName
+            }).ToList();
         }
 
-        // Mètode per actualitzar un registre existent.
-        public async Task<bool> UpdateAsync(int id, DimCntDto dto)
+        // Mètode per obtenir les plantes disponibles.
+        public async Task<List<string>> GetPlantesAsync()
         {
-            // Comprovació de seguretat: l'ID de la URL ha de coincidir amb l'ID del cos.
-            if (id != dto.ID) return false;
-
-            // Busquem l'entitat que volem modificar.
-            var entity = await _context.DimCnts.FindAsync(id);
-            if (entity == null) return false; // Si no existeix, retornem false.
-
-            // Actualitzem només els camps que permetem modificar.
-            entity.Descripcio = dto.Descripcio;
-            entity.Planta = dto.Planta;
-            entity.TagName = dto.TagName;
-
-            // Marquem l'estat com a modificat perquè l'ORM sàpiga que ha de fer un UPDATE.
-            _context.Entry(entity).State = EntityState.Modified;
+            var plants = new List<string>();
+            // 1. Obtenim la connexió del Context
+            var connection = _context.Database.GetDbConnection();
 
             try
             {
-                // Intentem guardar els canvis.
-                await _context.SaveChangesAsync();
-                return true; // Tot ha anat bé.
+                // 2. Obrim connexió si està tancada
+                if (connection.State != System.Data.ConnectionState.Open)
+                    await connection.OpenAsync();
+                // 3. Creem la comanda
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "EXEC sp_DimCnt_GetPlantes";
+
+                    // 4. Llegim els resultats
+                    using (var result = await command.ExecuteReaderAsync())
+                    {
+                        while (await result.ReadAsync())
+                        {
+                            // Llegim la primera columna (índex 0) si no és nula
+                            if (!result.IsDBNull(0))
+                            {
+                                plants.Add(result.GetString(0));
+                            }
+                        }
+                    }
+                }
             }
-            catch (DbUpdateConcurrencyException)
+            finally
             {
-                // Si hi ha un error de concurrència (algú altre l'ha esborrat mentre editàvem), comprovem si existeix.
-                if (!_context.DimCnts.Any(e => e.ID == id)) return false;
-                throw; // Si és un altre error, el llancem amunt.
+                // Opcional: EF Core gestiona la connexió, però tancar-la aquí és bona pràctica si hem fet Open manualment
+                // connection.Close(); 
             }
-        }
-
-        // Mètode per esborrar un registre.
-        public async Task<bool> DeleteAsync(int id)
-        {
-            // Busquem l'entitat a esborrar.
-            var entity = await _context.DimCnts.FindAsync(id);
-            if (entity == null) return false; // Si no existeix, no podem esborrar-la.
-
-            // Marquem l'entitat per ser esborrada.
-            _context.DimCnts.Remove(entity);
-            
-            // Guardem canvis. Aquí s'executa el DELETE.
-            await _context.SaveChangesAsync();
-            return true;
+            return plants;
         }
     }
 }

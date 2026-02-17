@@ -8,7 +8,7 @@ using WConsumsAPI.Services; // Per usar el Servei IFactCntHistorianService.
 namespace WConsumsAPI.Controllers
 {
     // [Route] defineix l'URL base: http://.../FactCntHistorianV2
-    [Route("[controller]")]
+    [Route("api/[controller]")]
     // [ApiController] afegeix comportaments automàtics d'API.
     [ApiController]
     public class FactCntHistorianV2Controller : ControllerBase

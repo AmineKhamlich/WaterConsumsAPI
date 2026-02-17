@@ -52,5 +52,6 @@ namespace WConsumsAPI.Models
         // Horaris o índexs relacionats amb la neteja.
         public int? IniciNeteja { get; set; }
         public int? FiNeteja { get; set; }
+        public int? SP_H_ACUM { get; set; }
     }
 }

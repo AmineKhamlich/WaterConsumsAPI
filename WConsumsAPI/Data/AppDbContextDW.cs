@@ -6,10 +6,10 @@ namespace WConsumsAPI.Data
     // Aquesta classe REPRESENTA la BASE DE DADES dins del codi.
     // Hereta de 'DbContext', la classe base de Microsoft EF Core.
     // RESPONSABILITAT: Gestionar la connexió i traduir classes C# a taules SQL.
-    public class AppDbContext : DbContext
+    public class AppDbContextDW : DbContext
     {
         // CONSTRUCTOR: Rep les opcions de configuració (cadena de connexió, tipus de BD).
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+        public AppDbContextDW(DbContextOptions<AppDbContextDW> options) : base(options)
         {
             // Passem les opcions a la classe pare (base).
         }

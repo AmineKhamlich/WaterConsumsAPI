@@ -2,9 +2,11 @@ using WConsumsAPI.Data; // Accés al DbContext (Base de Dades).
 using WConsumsAPI.DTOs; // Accés als DTOs.
 using WConsumsAPI.Models; // Accés a les Entitats (Taules).
 using Microsoft.EntityFrameworkCore; // Extensions d'Entity Framework (ToListAsync, etc.).
+using Microsoft.Data.SqlClient; // IMPORTANT: Per fer servir SqlParameter
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System;
 
 namespace WConsumsAPI.Services
 {
@@ -13,10 +15,10 @@ namespace WConsumsAPI.Services
     public class FactCntHistorianService : IFactCntHistorianService
     {
         // Referència al context de la base de dades.
-        private readonly AppDbContext _context;
+        private readonly AppDbContextDW _context;
 
         // Constructor que rep el context per injecció de dependències.
-        public FactCntHistorianService(AppDbContext context)
+        public FactCntHistorianService(AppDbContextDW context)
         {
             _context = context;
         }
@@ -24,11 +26,87 @@ namespace WConsumsAPI.Services
         // Obté tots els elements de la taula FACT_CNT_HISTORIAN_V2.
         public async Task<List<FactCntHistorianDto>> GetAllAsync()
         {
-            // 1. Llegim les entitats de la BD de forma asíncrona.
-            var entities = await _context.FactCntHistorians.ToListAsync();
+            // LECTURA MASSIVA: Molt més ràpid via SP
+            var entities = await _context.FactCntHistorians
+                .FromSqlRaw("EXEC sp_Fact_GetAll")
+                .ToListAsync();
+            return entities.Select(MapToDto).ToList();
+        }
 
-            // 2. Mapegem (convertim) cada entitat a un DTO per retornar-lo.
-            return entities.Select(e => new FactCntHistorianDto
+        // Obté un element per ID.
+        public async Task<FactCntHistorianDto?> GetByIdAsync(int id)
+        {
+            var paramId = new SqlParameter("@ID", id);
+            // 1. Primer obtenim la llista (així EF executa l'SP sense errors)
+            var results = await _context.FactCntHistorians
+                .FromSqlRaw("EXEC sp_Fact_GetById @ID", paramId)
+                .ToListAsync();
+            // 2. Ara agafem el primer de la llista que tenim a memòria
+            var entity = results.FirstOrDefault();
+            if (entity == null) return null;
+            return MapToDto(entity);
+        }
+
+        // Actualitza un registre existent.
+        public async Task<bool> UpdateAsync(int id, FactCntHistorianDto dto)
+        {
+            if (id != dto.ID) return false;
+            // UPDATE DIRECTE: Sense llegir abans. Molt eficient.
+            var sql = "EXEC sp_Fact_Update @ID, @TagNameID, @FechaNoel, @FechaInicio, @FechaFin, @ValorDiferencial, @ValorAbsoluto, @Hora, @AñoMes";
+            int rowsAffected = await _context.Database.ExecuteSqlRawAsync(sql,
+                new SqlParameter("@ID", id),
+                new SqlParameter("@TagNameID", dto.TagNameID),
+                new SqlParameter("@FechaNoel", dto.FechaNoel),
+                new SqlParameter("@FechaInicio", dto.FechaInicio),
+                new SqlParameter("@FechaFin", dto.FechaFin),
+                new SqlParameter("@ValorDiferencial", dto.ValorDiferencial ?? (object)DBNull.Value),
+                new SqlParameter("@ValorAbsoluto", dto.ValorAbsoluto ?? (object)DBNull.Value),
+                new SqlParameter("@Hora", dto.Hora ?? (object)DBNull.Value),
+                new SqlParameter("@AñoMes", dto.AñoMes ?? (object)DBNull.Value)
+            );
+            return rowsAffected > 0;
+        }
+        //---------------------------------------------------------------
+        public async Task<FactCntHistorianDto> CreateAsync(FactCntHistorianDto dto)
+        {
+            // INSERT: Fem servir ExecuteSqlRawAsync perquè no retorna files, sinó que modifica dades.
+            // Gestionem el paràmetre de sortida @NewID
+            var pNewId = new SqlParameter("@NewID", System.Data.SqlDbType.Int)
+            {
+                Direction = System.Data.ParameterDirection.Output
+            };
+            var sql = "EXEC sp_Fact_Insert @TagNameID, @FechaNoel, @FechaInicio, @FechaFin, @ValorDiferencial, @ValorAbsoluto, @Hora, @AñoMes, @NewID OUTPUT";
+            await _context.Database.ExecuteSqlRawAsync(sql,
+                new SqlParameter("@TagNameID", dto.TagNameID),
+                new SqlParameter("@FechaNoel", dto.FechaNoel),
+                new SqlParameter("@FechaInicio", dto.FechaInicio),
+                new SqlParameter("@FechaFin", dto.FechaFin),
+                new SqlParameter("@ValorDiferencial", dto.ValorDiferencial ?? (object)DBNull.Value),
+                new SqlParameter("@ValorAbsoluto", dto.ValorAbsoluto ?? (object)DBNull.Value),
+                new SqlParameter("@Hora", dto.Hora ?? (object)DBNull.Value),
+                new SqlParameter("@AñoMes", dto.AñoMes ?? (object)DBNull.Value),
+                pNewId
+            );
+            // Recuperem l'ID generat
+            dto.ID = (int)pNewId.Value;
+            return dto;
+        }
+        //---------------------------------------------------------------
+
+        // Esborra un registre per ID.
+        public async Task<bool> DeleteAsync(int id)
+        {
+            // DELETE DIRECTE
+            var sql = "EXEC sp_Fact_Delete @ID";
+            int rowsAffected = await _context.Database.ExecuteSqlRawAsync(sql, new SqlParameter("@ID", id));
+            return rowsAffected > 0;
+        }
+
+        // Helper per no repetir codi de mapeig
+        // Aquest metode .....
+        private static FactCntHistorianDto MapToDto(FactCntHistorianV2 e)
+        {
+            return new FactCntHistorianDto
             {
                 ID = e.ID,
                 TagNameID = e.TagNameID,
@@ -39,94 +117,7 @@ namespace WConsumsAPI.Services
                 ValorAbsoluto = e.ValorAbsoluto,
                 Hora = e.Hora,
                 AñoMes = e.AñoMes
-            }).ToList();
-        }
-
-        // Obté un element per ID.
-        public async Task<FactCntHistorianDto?> GetByIdAsync(int id)
-        {
-            var entity = await _context.FactCntHistorians.FindAsync(id);
-            if (entity == null) return null;
-
-            return new FactCntHistorianDto
-            {
-                ID = entity.ID,
-                TagNameID = entity.TagNameID,
-                FechaNoel = entity.FechaNoel,
-                FechaInicio = entity.FechaInicio,
-                FechaFin = entity.FechaFin,
-                ValorDiferencial = entity.ValorDiferencial,
-                ValorAbsoluto = entity.ValorAbsoluto,
-                Hora = entity.Hora,
-                AñoMes = entity.AñoMes
             };
-        }
-
-        // Crea un nou registre a la base de dades.
-        public async Task<FactCntHistorianDto> CreateAsync(FactCntHistorianDto dto)
-        {
-            // Creem l'entitat a partir del DTO.
-            var entity = new FactCntHistorianV2
-            {
-                // L'ID normalment és automàtic, no l'assignem si no cal.
-                TagNameID = dto.TagNameID,
-                FechaNoel = dto.FechaNoel,
-                FechaInicio = dto.FechaInicio,
-                FechaFin = dto.FechaFin,
-                ValorDiferencial = dto.ValorDiferencial,
-                ValorAbsoluto = dto.ValorAbsoluto,
-                Hora = dto.Hora,
-                AñoMes = dto.AñoMes
-            };
-
-            _context.FactCntHistorians.Add(entity);
-            await _context.SaveChangesAsync(); // Guardem a la BD.
-
-            dto.ID = entity.ID; // Recuperem l'ID generat.
-            return dto;
-        }
-
-        // Actualitza un registre existent.
-        public async Task<bool> UpdateAsync(int id, FactCntHistorianDto dto)
-        {
-            if (id != dto.ID) return false;
-
-            var entity = await _context.FactCntHistorians.FindAsync(id);
-            if (entity == null) return false;
-
-            // Actualitzem els camps.
-            entity.TagNameID = dto.TagNameID;
-            entity.FechaNoel = dto.FechaNoel;
-            entity.FechaInicio = dto.FechaInicio;
-            entity.FechaFin = dto.FechaFin;
-            entity.ValorDiferencial = dto.ValorDiferencial;
-            entity.ValorAbsoluto = dto.ValorAbsoluto;
-            entity.Hora = dto.Hora;
-            entity.AñoMes = dto.AñoMes;
-
-            _context.Entry(entity).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-                return true;
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.FactCntHistorians.Any(e => e.ID == id)) return false;
-                throw;
-            }
-        }
-
-        // Esborra un registre per ID.
-        public async Task<bool> DeleteAsync(int id)
-        {
-            var entity = await _context.FactCntHistorians.FindAsync(id);
-            if (entity == null) return false;
-
-            _context.FactCntHistorians.Remove(entity);
-            await _context.SaveChangesAsync();
-            return true;
         }
     }
 }

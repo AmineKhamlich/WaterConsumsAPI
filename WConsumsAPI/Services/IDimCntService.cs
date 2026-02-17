@@ -17,16 +17,12 @@ namespace WConsumsAPI.Services // Defineix l'espai de noms per als serveis.
         // Rep un 'int id' i retorna un únic 'DimCntDto' (o null si no existeix).
         Task<DimCntDto?> GetByIdAsync(int id);
 
-        // Defineix un mètode per CREAR un nou comptador.
-        // Rep el DTO amb les dades i retorna el DTO creat (amb l'ID assignat).
-        Task<DimCntDto> CreateAsync(DimCntDto dto);
+        // Defineix un metode per obtenir comptadors per planta.
+        // Rep un 'string planta' i retorna una Llista de DTOs.
+        Task<List<DimCntDto>> GetByPlantaAsync(string planta);
 
-        // Defineix un mètode per ACTUALITZAR un comptador existent.
-        // Rep l'ID i les noves dades. Retorna 'true' si ha anat bé, 'false' si no l'ha trobat.
-        Task<bool> UpdateAsync(int id, DimCntDto dto);
-
-        // Defineix un mètode per ESBORRAR un comptador.
-        // Rep l'ID a esborrar. Retorna 'true' si s'ha esborrat, 'false' si no existia.
-        Task<bool> DeleteAsync(int id);
+        // Defineix un mètode per obtenir les plantes disponibles.
+        // Retorna una Llista de cadenes (strings) amb els noms de les plantes.
+        Task<List<string>> GetPlantesAsync();
     }
 }

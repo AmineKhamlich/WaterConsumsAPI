@@ -22,9 +22,12 @@ namespace WConsumsAPI.DTOs // Defineix l'espai de noms on viuen els DTOs (Data T
         [StringLength(50)]
         public string? Planta { get; set; }
 
-        // Etiqueta tècnica del sensor o comptador (ex: 'FIC-101').
+        // Etiqueta tècnica del sensor o comptador (ex: 'FT_0101').
         // [StringLength(100)] limita la llargada a 100 caràcters.
         [StringLength(100)]
         public string? TagName { get; set; }
+
+        // Indica si el comptador està habilitat (1) o no (0).
+        public int? SP_H_ACUM { get; set; }
     }
 }
