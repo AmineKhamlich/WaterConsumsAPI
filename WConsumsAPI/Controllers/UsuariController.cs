@@ -3,6 +3,7 @@ using WConsumsAPI.DTOs;
 using WConsumsAPI.Services;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 
 namespace WConsumsAPI.Controllers
 {
@@ -24,8 +25,10 @@ namespace WConsumsAPI.Controllers
             _service = service;
         }
 
+        // NOMÉS ADMIN pot accedir a aquests endpoints, així que afegim l'autorització per al rol "Admin"
         // 1. LLISTAR USUARIS (Només ho hauria de veure l'Admin a la App)
-        // GET: api/usuarios
+        // GET: api/usuari
+        [Authorize(Roles = "ADMIN")]
         [HttpGet]
         public async Task<ActionResult<List<UsuariResumDto>>> GetUsuarios()
         {
@@ -33,8 +36,10 @@ namespace WConsumsAPI.Controllers
             return Ok(usuaris); // Retorna codi 200 amb la llista JSON
         }
 
+        // Obert a tothom (no requereix token) perquè és el que s'utilitzarà per fer login des de l'App Android.
         // 2. LOGIN (Per entrar a l'App Android)
-        // POST: api/usuarios/login
+        // POST: api/usuari/login
+        [AllowAnonymous]
         [HttpPost("login")]
         public async Task<ActionResult<UsuariResumDto>> Login(LoginDto loginDto)
         {
@@ -51,8 +56,10 @@ namespace WConsumsAPI.Controllers
             return Ok(user);
         }
 
+        // NOMÉS ADMIN pot crear usuaris
         // 3. CREAR USUARI (L'Admin crea des de l'App Android)
-        // POST: api/usuarios/crear
+        // POST: api/usuari/crear
+        [Authorize(Roles = "ADMIN")]
         [HttpPost("crear")]
         public async Task<IActionResult> CrearUsuari(CrearUsuariDto dto)
         {
@@ -68,8 +75,10 @@ namespace WConsumsAPI.Controllers
             return Ok(new { message = "Usuari creat correctament." });
         }
 
+        // NOMÉS ADMIN pot actualitzar usuaris
         // 4. ACTUALITZAR USUARI (L'Admin canvia rol, estat o força canvi de password)
-        // PUT: api/usuarios/actualitzar
+        // PUT: api/usuari/actualitzar
+        [Authorize(Roles = "ADMIN")]
         [HttpPut("actualitzar")]
         public async Task<IActionResult> ActualitzarUsuari(UpdateUsuariDto dto)
         {
@@ -83,8 +92,10 @@ namespace WConsumsAPI.Controllers
             return Ok(new { message = "Usuari actualitzat correctament." });
         }
 
+        // QUALSEVOL USUARI LOGEJAT pot canviar la seva contrasenya
         // 5. CANVIAR CONTRASENYA (L'usuari canvia la seva pròpia contrasenya)
-        // POST: api/usuarios/change-password
+        // POST: api/usuari/change-password
+        [Authorize]
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword(ChangePasswordDto dto)
         {

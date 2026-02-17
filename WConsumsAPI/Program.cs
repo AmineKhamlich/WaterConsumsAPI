@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using WConsumsAPI.Data;
 using WConsumsAPI.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +29,31 @@ var appConnectionString = builder.Configuration.GetConnectionString("AppConnecti
 builder.Services.AddDbContext<AppDbContextAPP>(options =>
     options.UseSqlServer(appConnectionString));
 
+// --- CONFIGURACIÓ DE SEGURETAT JWT ---
+var jwtKey = builder.Configuration["Jwt:Key"];
+var keyBytes = Encoding.ASCII.GetBytes(jwtKey);
+
+builder.Services.AddAuthentication(config =>
+{
+    config.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    config.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+}).AddJwtBearer(config =>
+{
+    config.RequireHttpsMetadata = false; // En producció hauria de ser true
+    config.SaveToken = true;
+    config.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
+        ValidateIssuer = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidateAudience = true,
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
 // Registre de Serveis al contenidor d'Injeccio de Dependencies (DI)
 builder.Services.AddScoped<IDimCntService, DimCntService>();
 // Registre del servei d'Històrics
@@ -48,6 +76,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// ATENCIÓ: L'ordre és vital. Primer Authentication (Qui ets?), després Authorization (Què pots fer?)
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

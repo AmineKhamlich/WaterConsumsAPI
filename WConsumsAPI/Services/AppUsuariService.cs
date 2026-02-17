@@ -6,6 +6,11 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Data;
 using System;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Configuration; // Per llegir appsettings.json
+using System.Text;
 
 namespace WConsumsAPI.Services
 {
@@ -18,9 +23,13 @@ namespace WConsumsAPI.Services
     {
         private readonly AppDbContextAPP _context;
 
-        public AppUsuariService(AppDbContextAPP context)
+        // Per a generar el JWT al fer login, necessitarem accedir a la clau secreta i altres paràmetres de configuració, que es poden llegir des d'appsettings.json mitjançant IConfiguration.
+        private readonly IConfiguration _configuration; // Per accedir a la clau secreta del JWT
+
+        public AppUsuariService(AppDbContextAPP context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
         // Retorna tota la llista d'usuaris (Ideal per a la pantalla d'Admin)
@@ -62,7 +71,6 @@ namespace WConsumsAPI.Services
 
             using (var command = connection.CreateCommand())
             {
-                // CRIDA A L'SP EXISTENT
                 command.CommandText = "EXEC sp_AppUsuari_GetByName @NomUsuari";
                 command.Parameters.Add(new SqlParameter("@NomUsuari", loginDto.Username));
 
@@ -74,27 +82,46 @@ namespace WConsumsAPI.Services
                         var dbNom = reader.GetString(reader.GetOrdinal("Nom_usuari"));
                         var dbPassHash = reader.GetString(reader.GetOrdinal("password_hash"));
                         var dbRol = reader.GetString(reader.GetOrdinal("Nom_Rol"));
-
-                        // En aquest SP (sp_AppUsuari_GetByName) ja filtrem per Actiu = 1,
-                        // per tant si arriba aquí, l'usuari està actiu segur.
                         bool canviPass = reader.GetBoolean(reader.GetOrdinal("CanviPasswordObligatori"));
 
-                        // Verifiquem el Password amb BCrypt
                         if (BCrypt.Net.BCrypt.Verify(loginDto.Password, dbPassHash))
                         {
+                            // 1. EL PASSWORD ÉS CORRECTE -> GENEREM EL TOKEN JWT
+                            var tokenHandler = new JwtSecurityTokenHandler();
+                            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]!);
+
+                            var tokenDescriptor = new SecurityTokenDescriptor
+                            {
+                                Subject = new ClaimsIdentity(new[]
+                                {
+                                    new Claim(ClaimTypes.NameIdentifier, dbId.ToString()),
+                                    new Claim(ClaimTypes.Name, dbNom),
+                                    new Claim(ClaimTypes.Role, dbRol) // GUARDEM EL ROL DINS DEL TOKEN!
+                                }),
+                                Expires = DateTime.UtcNow.AddDays(7), // El token dura 7 dies
+                                Issuer = _configuration["Jwt:Issuer"],
+                                Audience = _configuration["Jwt:Audience"],
+                                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+                            };
+
+                            var token = tokenHandler.CreateToken(tokenDescriptor);
+                            string tokenString = tokenHandler.WriteToken(token);
+
+                            // 2. RETORNEM L'USUARI AMB EL SEU TOKEN
                             return new UsuariResumDto
                             {
                                 Id = dbId,
                                 Nom = dbNom,
                                 Rol = dbRol,
                                 Actiu = true,
-                                CanviPasswordObligatori = canviPass
+                                CanviPasswordObligatori = canviPass,
+                                Token = tokenString // NOU: Retornem el token!
                             };
                         }
                     }
                 }
             }
-            return null; // Login incorrecte o usuari inactiu
+            return null;
         }
 
         // Mètode per a crear un nou usuari, que encripta la contrasenya abans de guardar-la a la base de dades.

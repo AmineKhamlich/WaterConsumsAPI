@@ -9,5 +9,8 @@
         public string Rol { get; set; } = string.Empty;
         public bool? Actiu { get; set; }
         public bool CanviPasswordObligatori { get; set; }
+
+        // Aquí guardarem el Token JWT només quan fem Login
+        public string? Token { get; set; }
     }
 }
