@@ -1,6 +1,7 @@
 ﻿using WConsumsAPI.Data;
 using WConsumsAPI.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Data; // Necessari per ConnectionState
@@ -17,18 +18,9 @@ namespace WConsumsAPI.Services
             _context = context;
         }
 
-        public async Task<List<IncidenciaVistaDto>> GetActivesByPlantaAsync(string planta)
+        // NOU MÈTODE QUE CRIDA A L'SP DE LA BASE DE DADES
+        public async Task<List<IncidenciaVistaDto>> GetIncidenciesFiltradesAsync(string idsPlantes)
         {
-            // 1. Query a la vista definitiva
-            var sql = "SELECT * FROM VW_Llistat_Incidencies";
-
-            // 2. Filtre opcional per planta (Ubicació)
-            if (!string.IsNullOrEmpty(planta) && planta.ToLower() != "totes")
-            {
-                // Assegurem que filtrem per la columna correcta de la vista
-                sql += $" WHERE [Ubicació] = '{planta}'";
-            }
-
             var list = new List<IncidenciaVistaDto>();
             var connection = _context.Database.GetDbConnection();
 
@@ -38,16 +30,19 @@ namespace WConsumsAPI.Services
 
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = sql;
+                    // 1. Cridem al Procedure
+                    command.CommandText = "EXEC sp_AppIncidencia_GetFiltrades @LlistaIdsPlantes";
+
+                    // 2. Li passem el paràmetre ('ALL', 'NONE', o '1,3')
+                    command.Parameters.Add(new SqlParameter("@LlistaIdsPlantes", idsPlantes));
+
                     using (var reader = await command.ExecuteReaderAsync())
                     {
                         while (await reader.ReadAsync())
                         {
                             var dto = new IncidenciaVistaDto();
 
-                            // 3. Mapeig Manual (Seguretat total amb noms de columnes)
-                            // Fem servir GetOrdinal perquè les columnes tenen espais/accents
-
+                            // 3. Mapeig Manual que ja tenies (Seguretat total amb noms de columnes)
                             dto.Id = reader.GetInt32(reader.GetOrdinal("ID"));
                             dto.DataCreacio = reader.GetDateTime(reader.GetOrdinal("Data Creació"));
 

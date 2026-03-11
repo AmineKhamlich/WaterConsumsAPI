@@ -4,6 +4,7 @@ namespace WConsumsAPI.Services
 {
     public interface IIncidenciaService
     {
-        Task<List<IncidenciaVistaDto>> GetActivesByPlantaAsync(string planta);
+        // Mètode per obtenir les alarmes filtrades segons la llista de plantes
+        Task<List<IncidenciaVistaDto>> GetIncidenciesFiltradesAsync(string idsPlantes);
     }
 }

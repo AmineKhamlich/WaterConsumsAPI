@@ -60,6 +60,8 @@ builder.Services.AddScoped<IDimCntService, DimCntService>();
 builder.Services.AddScoped<IFactCntHistorianService, FactCntHistorianService>();
 // Registre del servei d'Incidències
 builder.Services.AddScoped<IIncidenciaService, IncidenciaService>();
+// Registre del servei de Plantes
+builder.Services.AddScoped<IAppPlantaService, AppPlantaService>();
 
 
 // Registre del servei d'Usuaris

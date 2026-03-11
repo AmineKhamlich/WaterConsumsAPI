@@ -18,5 +18,8 @@ namespace WConsumsAPI.Services
 
         // Canvia el password d'un usuari existent
         Task<bool> ChangePasswordAsync(ChangePasswordDto dto);
+
+        // Reseteja el password d'un usuari a un valor per defecte (ex: "123456") i força el canvi al proper login
+        Task<bool> ResetPasswordAsync(string username);
     }
 }

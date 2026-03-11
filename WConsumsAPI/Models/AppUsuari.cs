@@ -28,5 +28,8 @@ namespace WConsumsAPI.Models
 
         [ForeignKey("Id_rol")]
         public virtual AppRol? Rol { get; set; }
+
+        // --- RELACIÓ AMB PLANTES (Taula Pont N-M) ---
+        public virtual ICollection<AppUsuariPlanta>? UsuariPlantes { get; set; }
     }
 }
