@@ -1,10 +1,11 @@
-﻿using WConsumsAPI.Data;
-using WConsumsAPI.DTOs;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
+using System.Data;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Data; // Necessari per ConnectionState
 using System;
+using WConsumsAPI.Data;
+using WConsumsAPI.DTOs;
 
 namespace WConsumsAPI.Services
 {
@@ -17,74 +18,84 @@ namespace WConsumsAPI.Services
             _context = context;
         }
 
-        public async Task<List<IncidenciaVistaDto>> GetActivesByPlantaAsync(string planta)
+        private async Task<List<IncidenciaVistaDto>> ExecutarSpLlistatAsync(string spName, string idsPlantes)
         {
-            // 1. Query a la vista definitiva
-            var sql = "SELECT * FROM VW_Llistat_Incidencies";
-
-            // 2. Filtre opcional per planta (Ubicació)
-            if (!string.IsNullOrEmpty(planta) && planta.ToLower() != "totes")
-            {
-                // Assegurem que filtrem per la columna correcta de la vista
-                sql += $" WHERE [Ubicació] = '{planta}'";
-            }
-
             var list = new List<IncidenciaVistaDto>();
             var connection = _context.Database.GetDbConnection();
+            if (connection.State != ConnectionState.Open) await connection.OpenAsync();
 
-            try
+            using (var command = connection.CreateCommand())
             {
-                if (connection.State != ConnectionState.Open) await connection.OpenAsync();
+                command.CommandText = $"EXEC {spName} @LlistaIdsPlantes";
+                command.Parameters.Add(new SqlParameter("@LlistaIdsPlantes", idsPlantes));
 
-                using (var command = connection.CreateCommand())
+                using (var reader = await command.ExecuteReaderAsync())
                 {
-                    command.CommandText = sql;
-                    using (var reader = await command.ExecuteReaderAsync())
+                    while (await reader.ReadAsync())
                     {
-                        while (await reader.ReadAsync())
-                        {
-                            var dto = new IncidenciaVistaDto();
+                        var dto = new IncidenciaVistaDto();
 
-                            // 3. Mapeig Manual (Seguretat total amb noms de columnes)
-                            // Fem servir GetOrdinal perquè les columnes tenen espais/accents
+                        dto.Id = reader.GetInt32(reader.GetOrdinal("ID"));
+                        dto.DataCreacio = reader.GetDateTime(reader.GetOrdinal("Data Creació"));
+                        dto.Gravetat = reader.IsDBNull(reader.GetOrdinal("Gravetat")) ? "" : reader.GetString(reader.GetOrdinal("Gravetat"));
+                        dto.Estat = reader.IsDBNull(reader.GetOrdinal("Estat")) ? "" : reader.GetString(reader.GetOrdinal("Estat"));
+                        dto.Comptador = reader.IsDBNull(reader.GetOrdinal("Comptador")) ? "" : reader.GetString(reader.GetOrdinal("Comptador"));
+                        dto.Ubicacio = reader.IsDBNull(reader.GetOrdinal("Ubicació")) ? "" : reader.GetString(reader.GetOrdinal("Ubicació"));
+                        dto.DetallAlarma = reader.IsDBNull(reader.GetOrdinal("Detall Alarma")) ? "" : reader.GetString(reader.GetOrdinal("Detall Alarma"));
 
-                            dto.Id = reader.GetInt32(reader.GetOrdinal("ID"));
-                            dto.DataCreacio = reader.GetDateTime(reader.GetOrdinal("Data Creació"));
+                        int colH = reader.GetOrdinal("Hora Avís (H)");
+                        if (!reader.IsDBNull(colH)) dto.HoraAvisH = reader.GetDateTime(colH);
 
-                            // Gestió de nuls per Strings
-                            dto.Gravetat = reader.IsDBNull(reader.GetOrdinal("Gravetat")) ? "" : reader.GetString(reader.GetOrdinal("Gravetat"));
-                            dto.Estat = reader.IsDBNull(reader.GetOrdinal("Estat")) ? "" : reader.GetString(reader.GetOrdinal("Estat"));
-                            dto.Comptador = reader.IsDBNull(reader.GetOrdinal("Comptador")) ? "" : reader.GetString(reader.GetOrdinal("Comptador"));
-                            dto.Ubicacio = reader.IsDBNull(reader.GetOrdinal("Ubicació")) ? "" : reader.GetString(reader.GetOrdinal("Ubicació"));
-                            dto.DetallAlarma = reader.IsDBNull(reader.GetOrdinal("Detall Alarma")) ? "" : reader.GetString(reader.GetOrdinal("Detall Alarma"));
+                        int colHH = reader.GetOrdinal("Hora Crític (HH)");
+                        if (!reader.IsDBNull(colHH)) dto.HoraCriticHH = reader.GetDateTime(colHH);
 
-                            // Gestió de nuls per Dates
-                            int colH = reader.GetOrdinal("Hora Avís (H)");
-                            if (!reader.IsDBNull(colH)) dto.HoraAvisH = reader.GetDateTime(colH);
+                        dto.ConsumRealAvui = reader.GetDouble(reader.GetOrdinal("Consum Real Avui"));
 
-                            int colHH = reader.GetOrdinal("Hora Crític (HH)");
-                            if (!reader.IsDBNull(colHH)) dto.HoraCriticHH = reader.GetDateTime(colHH);
+                        int colLimitH = reader.GetOrdinal("Límit H");
+                        if (!reader.IsDBNull(colLimitH)) dto.LimitH = reader.GetInt32(colLimitH);
 
-                            // Gestió de numèrics
-                            dto.ConsumRealAvui = reader.GetDouble(reader.GetOrdinal("Consum Real Avui"));
+                        int colLimitHH = reader.GetOrdinal("Límit HH");
+                        if (!reader.IsDBNull(colLimitHH)) dto.LimitHH = reader.GetInt32(colLimitHH);
 
-                            int colLimitH = reader.GetOrdinal("Límit H");
-                            if (!reader.IsDBNull(colLimitH)) dto.LimitH = reader.GetInt32(colLimitH);
+                        // LLEGIM LES DUES NOVES COLUMNES
+                        int colDataTancament = reader.GetOrdinal("Data Tancament");
+                        if (!reader.IsDBNull(colDataTancament)) dto.DataTancament = reader.GetDateTime(colDataTancament);
 
-                            int colLimitHH = reader.GetOrdinal("Límit HH");
-                            if (!reader.IsDBNull(colLimitHH)) dto.LimitHH = reader.GetInt32(colLimitHH);
+                        int colTemps = reader.GetOrdinal("Temps Transcorregut");
+                        if (!reader.IsDBNull(colTemps)) dto.TempsTranscorregut = reader.GetString(colTemps);
 
-                            list.Add(dto);
-                        }
+                        list.Add(dto);
                     }
                 }
             }
-            finally
-            {
-                if (connection.State == ConnectionState.Open) connection.Close();
-            }
-
             return list;
+        }
+
+        public async Task<List<IncidenciaVistaDto>> GetActivesAsync(string idsPlantes) =>
+            await ExecutarSpLlistatAsync("sp_AppIncidencia_GetActivesAlarms", idsPlantes);
+
+        public async Task<List<IncidenciaVistaDto>> GetHistoricAsync(string idsPlantes) =>
+            await ExecutarSpLlistatAsync("sp_AppIncidencia_GetHistoricAlarms", idsPlantes);
+
+        public async Task<bool> TancarIncidenciaAsync(TancarIncidenciaDto dto, int idUsuari)
+        {
+            try
+            {
+                var sql = "EXEC sp_AppIncidencia_TancarIncidencia @IdIncidencia, @IdUsuariTecnic, @Descripcio, @Solucio, @FotoBase64";
+
+                await _context.Database.ExecuteSqlRawAsync(sql,
+                    new SqlParameter("@IdIncidencia", dto.IdIncidencia),
+                    new SqlParameter("@IdUsuariTecnic", idUsuari),
+                    new SqlParameter("@Descripcio", dto.DescripcioIncidencia),
+                    new SqlParameter("@Solucio", dto.SolucioAdaptada),
+                    new SqlParameter("@FotoBase64", (object?)dto.FotoBase64 ?? DBNull.Value)
+                );
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
     }
 }

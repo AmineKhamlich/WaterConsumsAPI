@@ -108,5 +108,18 @@ namespace WConsumsAPI.Controllers
 
             return Ok(new { message = "Contrasenya actualitzada correctament." });
         }
+
+        [AllowAnonymous]
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] Dictionary<string, string> data)
+        {
+            // Com que des d'Android enviem un Map, aquí rebem un Dictionary o un DTO
+            if (!data.ContainsKey("username")) return BadRequest();
+
+            var success = await _service.ResetPasswordAsync(data["username"]);
+            if (!success) return BadRequest(new { message = "L'usuari no existeix" });
+
+            return Ok(new { message = "Contrasenya restablerta" });
+        }
     }
 }

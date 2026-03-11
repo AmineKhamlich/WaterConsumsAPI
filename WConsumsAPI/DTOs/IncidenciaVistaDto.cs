@@ -15,5 +15,7 @@
         public double ConsumRealAvui { get; set; }
         public int? LimitH { get; set; }
         public int? LimitHH { get; set; }
+        public DateTime? DataTancament { get; set; }
+        public string TempsTranscorregut { get; set; } = string.Empty; // Format "X dies, Y hores"
     }
 }

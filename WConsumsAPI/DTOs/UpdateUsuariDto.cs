@@ -8,5 +8,8 @@
         public string? NouRol { get; set; } // Opcional: Si és null, no es canvia
         public bool? Actiu { get; set; }    // Opcional: Si és null, no es canvia
         public bool? CanviPasswordObligatori { get; set; } // Opcional: Si és null, no es canvia
+
+        // NOU: Llista d'IDs actualitzats (si és null, l'API no tocarà les plantes)
+        public List<int>? IdsPlantes { get; set; }
     }
 }
