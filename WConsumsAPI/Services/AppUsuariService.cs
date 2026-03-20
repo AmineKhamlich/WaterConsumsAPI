@@ -48,7 +48,7 @@ namespace WConsumsAPI.Services
                 {
                     while (await reader.ReadAsync())
                     {
-                        // Llegim el text de les plantes separades per comes
+                        // Llegim el text (Ex: "Noel-1, Noel-7")
                         var ordinalPlantes = reader.GetOrdinal("PlantesAssignadesText");
                         string plantesText = reader.IsDBNull(ordinalPlantes) ? "" : reader.GetString(ordinalPlantes);
 
@@ -60,13 +60,13 @@ namespace WConsumsAPI.Services
                         {
                             Id = reader.GetInt32(reader.GetOrdinal("Id_usuari")),
                             NomUsuari = reader.GetString(reader.GetOrdinal("Nom_usuari")),
-                            // Llegim els camps nous (o els deixem buits si són null a la base de dades vella)
                             Nom = reader.IsDBNull(ordinalNom) ? "" : reader.GetString(ordinalNom),
                             Cognom = reader.IsDBNull(ordinalCognom) ? "" : reader.GetString(ordinalCognom),
                             Rol = reader.GetString(reader.GetOrdinal("Nom_Rol")),
                             Actiu = reader.GetBoolean(reader.GetOrdinal("Actiu")),
                             CanviPasswordObligatori = reader.GetBoolean(reader.GetOrdinal("CanviPasswordObligatori")),
-                            PlantesAssignadesText = plantesText // Assignem el text per a l'Admin
+                            PlantesAssignadesText = plantesText,
+                            IdsPlantes = new List<int>() // HO DEIXEM BUIT PERQUÈ NO PETI! L'Android farà la màgia.
                         });
                     }
                 }

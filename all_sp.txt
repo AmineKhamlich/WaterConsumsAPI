@@ -1,0 +1,109 @@
+definition
+----------
+
+-- =========================================================================
+-- 2. SP per obtenir les Alarmes ACTIVES (Estat = 1) filtrades per Planta
+-- =========================================================================
+CREATE   PROCEDURE [dbo
+
+/*
+    =============================================================================
+    NOM DEL PROCEDIMENT: [dbo].[sp_AppIncidencia_GetFiltrades]
+    DESCRIPCIÓ: Utilitza la teva consulta mestra.
+                - Si rep 'ALL', mostra TOTES les ala
+
+-- =========================================================================
+-- 3. SP per obtenir l'HISTÒRIC (Estat = 2) filtrat per Planta
+-- =========================================================================
+CREATE   PROCEDURE [dbo].[sp_AppIn
+
+-- =========================================================================
+-- 1. SP per Tancar la Incidència
+-- =========================================================================
+CREATE   PROCEDURE [dbo].[sp_AppIncidencia_TancarIncidencia]
+ 
+
+/*
+    =============================================================================
+    NOM DEL PROCEDIMENT: [dbo].[sp_AppPlanta_AdminUpdateStatusMassive]
+    
+    DESCRIPCIÓ:
+    Procediment d'ús exclusiu per a Administradors.
+    Actualitza l'es
+
+/*
+    =============================================================================
+    NOM DEL PROCEDIMENT: [dbo].[sp_AppPlanta_GetAll]
+    DESCRIPCIÓ: Llista totes les plantes i el seu estat per a l'App Android.
+    ===============================
+
+/*
+    =============================================================================
+    PROCEDIMENT: GetAll (Per a la pantalla d'Admin)
+    DESC: Llista tots els usuaris amb el seu rol i els noms de les plantes assignades.
+    ======================
+
+/*
+    =============================================================================
+    PROCEDIMENT: Login / GetByUsername
+    DESC: Busca un usuari pel seu nom i retorna les seves dades, el seu ROL, 
+          i els IDs de les plantes que té assign
+
+CREATE PROCEDURE [dbo].[sp_AppUsuari_GetPasswordHashById]
+    @IdUsuari int
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT password_hash 
+    FROM [dbo].[APP_USUARI] 
+    WHERE Id_usuari = @IdUsuari;
+END
+
+
+CREATE   PROCEDURE [dbo].[sp_AppUsuari_Insert]
+    @NomUsuari nvarchar(100),
+    @PasswordHash nvarchar(255),
+    @NomRol nvarchar(50),
+    @Nom nvarchar(100), -- NOU CAMP: Nom de l'usuari
+    @Cognom nvarchar(100), -- NOU CAMP: Cognom de l'usuari
+
+
+/*
+    =============================================================================
+    NOM DEL PROCEDIMENT: [dbo].[sp_AppUsuari_ResetPassword]
+    
+    DESCRIPCIÓ:
+    Utilitzat per restablir la contrasenya d'un usuari que l'ha oblidat.
+    
+   
+
+CREATE   PROCEDURE [dbo].[sp_AppUsuari_Update]
+    @IdUsuari int,
+    @NomRol nvarchar(50) = NULL,
+    @Actiu bit = NULL,
+    @CanviPasswordObligatori bit = NULL,
+    @LlistaIdsPlantes nvarchar(max) = NULL -- NOU PARÀMETRE: ex. '3,5'
+AS
+BEGIN
+   
+/*
+    PROCEDIMENT: UpdatePassword
+    DESC: Actualitza la contrasenya d'un usuari i treu l'obligatorietat de canvi.
+*/
+CREATE   PROCEDURE [dbo].[sp_AppUsuari_UpdatePassword]
+    @IdUsuari int,
+    @NewPasswordHash nvarchar(255)
+AS
+BEGIN
+    SET N
+
+/*
+    =============================================================================
+    NOM DEL PROCEDIMENT: [dbo].[sp_Job_SyncPlantes]
+    
+    DESCRIPCIÓ:
+    Aquest procediment actua com a procés de sincronització automàtica (Data Sync) 
+    en
+
+(14 filas afectadas)

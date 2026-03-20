@@ -106,5 +106,16 @@ namespace WConsumsAPI.Controllers
             // Retornem 204 No Content.
             return NoContent();
         }
+
+        // Dins de FactCntHistorianV2Controller.cs
+        //------------------------------------
+        [HttpGet("filtrat")]
+        public async Task<ActionResult<List<ConsumFiltratDto>>> GetConsumFiltrat(int idComptador, DateTime start, DateTime end)
+        {
+            // Aprofitem el mètode que JA tens al servei i el DTO ConsumFiltratDto
+            var result = await _service.GetConsumFiltratAsync(idComptador, start, end);
+            return Ok(result);
+        }
+
     }
 }

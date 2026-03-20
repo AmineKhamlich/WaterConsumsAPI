@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System;
+using System.Data;
+
 
 namespace WConsumsAPI.Services
 {
@@ -119,5 +121,36 @@ namespace WConsumsAPI.Services
                 AñoMes = e.AñoMes
             };
         }
+
+        //---------------------------------------------
+
+        public async Task<List<ConsumFiltratDto>> GetConsumFiltratAsync(int idComptador, DateTime start, DateTime end)
+        {
+            var list = new List<ConsumFiltratDto>();
+            var connection = _context.Database.GetDbConnection();
+            if (connection.State != ConnectionState.Open) await connection.OpenAsync();
+
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "EXEC sp_AppConsums_GetConsumFiltrat @CNT_ID, @DataInici, @DataFi";
+                command.Parameters.Add(new SqlParameter("@CNT_ID", idComptador));
+                command.Parameters.Add(new SqlParameter("@DataInici", start));
+                command.Parameters.Add(new SqlParameter("@DataFi", end));
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        list.Add(new ConsumFiltratDto
+                        {
+                            Data = reader.GetDateTime(0),
+                            Consum = reader.GetDouble(1)
+                        });
+                    }
+                }
+            }
+            return list;
+        }
+
     }
 }
