@@ -12,7 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-// Configuració de Swagger per acceptar Tokens JWT
+// Configuraciï¿½ de Swagger per acceptar Tokens JWT
 builder.Services.AddSwaggerGen(c =>
 {
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
@@ -46,16 +46,16 @@ builder.Services.AddSwaggerGen(c =>
 //    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
 // Configuracio de la Base de Dades (SQL Server)
-// 1. Connexió DW (Comptadors) -> De moment es diu AppDbContext
+// 1. Connexiï¿½ DW (Comptadors) -> De moment es diu AppDbContext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContextDW>(options =>
     options.UseSqlServer(connectionString));
-// 2. Connexió APP (Seguretat) -> El nou AppDbContextAPP
+// 2. Connexiï¿½ APP (Seguretat) -> El nou AppDbContextAPP
 var appConnectionString = builder.Configuration.GetConnectionString("AppConnection");
 builder.Services.AddDbContext<AppDbContextAPP>(options =>
     options.UseSqlServer(appConnectionString));
 
-// --- CONFIGURACIÓ DE SEGURETAT JWT ---
+// --- CONFIGURACIï¿½ DE SEGURETAT JWT ---
 var jwtKey = builder.Configuration["Jwt:Key"];
 var keyBytes = Encoding.ASCII.GetBytes(jwtKey);
 
@@ -65,7 +65,7 @@ builder.Services.AddAuthentication(config =>
     config.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 }).AddJwtBearer(config =>
 {
-    config.RequireHttpsMetadata = false; // En producció hauria de ser true
+    config.RequireHttpsMetadata = false; // En producciï¿½ hauria de ser true
     config.SaveToken = true;
     config.TokenValidationParameters = new TokenValidationParameters
     {
@@ -81,10 +81,11 @@ builder.Services.AddAuthentication(config =>
 });
 
 // Registre de Serveis al contenidor d'Injeccio de Dependencies (DI)
+builder.Services.AddSignalR();
 builder.Services.AddScoped<IDimCntService, DimCntService>();
-// Registre del servei d'Històrics
+// Registre del servei d'Histï¿½rics
 builder.Services.AddScoped<IFactCntHistorianService, FactCntHistorianService>();
-// Registre del servei d'Incidències
+// Registre del servei d'Incidï¿½ncies
 builder.Services.AddScoped<IIncidenciaService, IncidenciaService>();
 // Registre del servei de Plantes
 builder.Services.AddScoped<IAppPlantaService, AppPlantaService>();
@@ -104,10 +105,18 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// ATENCIÓ: L'ordre és vital. Primer Authentication (Qui ets?), després Authorization (Què pots fer?)
+var imagesPath = Path.Combine(Directory.GetCurrentDirectory(), "ImatgesIncidencies");
+if (!Directory.Exists(imagesPath)) { Directory.CreateDirectory(imagesPath); }
+app.UseStaticFiles(new StaticFileOptions {
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(imagesPath),
+    RequestPath = "/api/imatges"
+});
+
+// ATENCI: L'ordre s vital. Primer Authentication (Qui ets?), desprs Authorization (Qu pots fer?)
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<WConsumsAPI.Hubs.NotificacioHub>("/api/hubs/notificacions");
 
 app.Run();

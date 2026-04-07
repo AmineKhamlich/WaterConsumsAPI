@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using WConsumsAPI.DTOs;
 using WConsumsAPI.Services;
+using Microsoft.AspNetCore.SignalR;
 
 namespace WConsumsAPI.Controllers
 {
@@ -15,10 +16,24 @@ namespace WConsumsAPI.Controllers
     public class IncidenciaController : ControllerBase
     {
         private readonly IIncidenciaService _service;
+        private readonly Microsoft.AspNetCore.SignalR.IHubContext<WConsumsAPI.Hubs.NotificacioHub> _hubContext;
 
-        public IncidenciaController(IIncidenciaService service)
+        public IncidenciaController(IIncidenciaService service, Microsoft.AspNetCore.SignalR.IHubContext<WConsumsAPI.Hubs.NotificacioHub> hubContext)
         {
             _service = service;
+            _hubContext = hubContext;
+        }
+
+        // AQUEST ÉS L'ENDPOINT INVISIBLE QUE TRUCA L'SQL SERVER TRIGGER!
+        [AllowAnonymous]
+        [HttpPost("SenyalTrigger")]
+        public async Task<IActionResult> SenyalTrigger([FromQuery] int id)
+        {
+            // Quan rep el toc de la base de dades, envia automàticament un senyal a TOTS
+            // els telèfons Android connectats al túnel WebSocket.
+            // Nom: "RebreNotificacio" - El paràmetre és la ID de la incidència (Android s'encarregarà de llegir-la).
+            await _hubContext.Clients.All.SendAsync("RebreNotificacio", id);
+            return Ok(new { message = "Senyal escampada als dispositius." });
         }
 
         private string GetPlantesDelToken()
@@ -34,21 +49,23 @@ namespace WConsumsAPI.Controllers
         }
 
         [HttpGet("actives")]
-        public async Task<ActionResult<List<IncidenciaVistaDto>>> GetActives(string? plantaId = null)
+        public async Task<ActionResult<List<IncidenciaVistaDto>>> GetActives([FromQuery] string? plantaId = null)
         {
-            // Si plantaId té valor (ve de l'Android), usem aquest. Si és null, usem els del Token.
-            var idsPlantes = !string.IsNullOrEmpty(plantaId) ? plantaId : GetPlantesDelToken();
-            var result = await _service.GetActivesAsync(idsPlantes);
+            // Si la App ens passa la planta, filtrem per aquesta. Si no, usem les del Token (per defecte).
+            var idsFiltre = string.IsNullOrEmpty(plantaId) ? GetPlantesDelToken() : plantaId;
+            var result = await _service.GetActivesAsync(idsFiltre);
             return Ok(result);
         }
 
         [HttpGet("historic")]
-        public async Task<ActionResult<List<IncidenciaVistaDto>>> GetHistoric(string? plantaId = null)
+        public async Task<ActionResult<List<IncidenciaVistaDto>>> GetHistoric([FromQuery] string? plantaId = null)
         {
-            var idsPlantes = !string.IsNullOrEmpty(plantaId) ? plantaId : GetPlantesDelToken();
-            var result = await _service.GetHistoricAsync(idsPlantes);
+            // Mateixa lògica per a l'històric
+            var idsFiltre = string.IsNullOrEmpty(plantaId) ? GetPlantesDelToken() : plantaId;
+            var result = await _service.GetHistoricAsync(idsFiltre);
             return Ok(result);
         }
+
 
         // Retorna la foto d'una alarma tancada com a string Base64
         // La foto s'emmagatzema com a ruta relativa al servidor (ex: ImatgesIncidencies/file.jpg)
@@ -82,7 +99,7 @@ namespace WConsumsAPI.Controllers
         }
 
         [HttpPost("tancar")]
-        public async Task<IActionResult> TancarIncidencia([FromBody] TancarIncidenciaDto dto)
+        public async Task<IActionResult> TancarIncidencia([FromForm] TancarIncidenciaDto dto)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!int.TryParse(userIdClaim, out int idUsuari))
@@ -90,12 +107,15 @@ namespace WConsumsAPI.Controllers
                 return Unauthorized(new { message = "Token invàlid o usuari no trobat." });
             }
 
-            var success = await _service.TancarIncidenciaAsync(dto, idUsuari);
-
-            if (success)
-                return Ok(new { message = "Incidència tancada correctament." });
-            else
-                return StatusCode(500, new { message = "Error intern al tancar la incidència." });
+            try {
+                var success = await _service.TancarIncidenciaAsync(dto, idUsuari);
+                if (success)
+                    return Ok(new { message = "Incidència tancada correctament." });
+                else
+                    return StatusCode(500, new { message = "Error desconegut al tancar la incidència." });
+            } catch (Exception ex) {
+                return StatusCode(500, new { message = $"Error real: {ex.Message}" });
+            }
         }
     }
 }

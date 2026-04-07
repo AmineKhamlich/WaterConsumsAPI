@@ -1,6 +1,7 @@
-﻿using System; // Per usar DateTime i altres tipus bàsics.
+using System; // Per usar DateTime i altres tipus bàsics.
 using System.Collections.Generic; // Per gestionar llistes (List<T>).
 using System.Threading.Tasks; // Per operacions asíncrones (Task).
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc; // Per usar ControllerBase, HttpGet, etc.
 using WConsumsAPI.DTOs; // Per usar el DTO FactCntHistorianDto.
 using WConsumsAPI.Services; // Per usar el Servei IFactCntHistorianService.
@@ -107,14 +108,39 @@ namespace WConsumsAPI.Controllers
             return NoContent();
         }
 
-        // Dins de FactCntHistorianV2Controller.cs
-        //------------------------------------
+        [Authorize]
         [HttpGet("filtrat")]
-        public async Task<ActionResult<List<ConsumFiltratDto>>> GetConsumFiltrat(int idComptador, DateTime start, DateTime end)
+        public async Task<ActionResult<List<ConsumFiltratDto>>> GetConsumFiltrat([FromQuery] int idComptador, [FromQuery] DateTime start, [FromQuery] DateTime end)
         {
-            // Aprofitem el mètode que JA tens al servei i el DTO ConsumFiltratDto
             var result = await _service.GetConsumFiltratAsync(idComptador, start, end);
             return Ok(result);
+        }
+
+        [Authorize]
+        [HttpGet("live")]
+        public async Task<ActionResult<double>> GetLiveValue([FromQuery] string tagName)
+        {
+            var value = await _service.GetLiveValueAsync(tagName);
+            return Ok(value);
+        }
+
+        // GET: api/FactCntHistorianV2/dia?idContador=1&data=2024-04-13
+        [Authorize]
+        [HttpGet("dia")]
+        public async Task<ActionResult<List<FactCntHistorianDto>>> GetPerDia([FromQuery] int idContador, [FromQuery] DateTime data)
+        {
+            var result = await _service.GetRegistresPerDiaAsync(idContador, data);
+            return Ok(result);
+        }
+
+        // POST: api/FactCntHistorianV2/corregir
+        [Authorize]
+        [HttpPost("corregir")]
+        public async Task<IActionResult> CorregirValor([FromQuery] int idHistorian, [FromQuery] float? nouValor)
+        {
+            var success = await _service.UpdateRegistreSeleccionatAsync(idHistorian, nouValor);
+            if (!success) return NotFound(new { message = "No s'ha pogut corregir el registre." });
+            return Ok(new { message = "Valor corregit correctament." });
         }
 
     }

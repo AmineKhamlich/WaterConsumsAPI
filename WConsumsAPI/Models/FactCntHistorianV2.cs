@@ -40,5 +40,7 @@ namespace WConsumsAPI.Models
 
         // Any i Mes (ex: "2024-01"). Útil per agrupar per mesos.
         public string? AñoMes { get; set; }
+
+        public double? ValorDifMod { get; set; }
     }
 }

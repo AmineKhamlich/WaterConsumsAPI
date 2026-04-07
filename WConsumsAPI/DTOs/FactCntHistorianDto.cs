@@ -40,5 +40,8 @@ namespace WConsumsAPI.DTOs
         // Útil per fer informes mensuals sense haver de calcular dates complexes.
         [StringLength(20)] // Validació: no pot superar els 20 caràcters.
         public string? AñoMes { get; set; }
+
+        // Valor diferencial modificat (pot ser el mateix que ValorDiferencial o ajustat).
+        public double? ValorDifMod { get; set; }
     }
 }

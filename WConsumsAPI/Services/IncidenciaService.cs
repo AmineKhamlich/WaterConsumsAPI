@@ -81,38 +81,34 @@ namespace WConsumsAPI.Services
             {
                 string? rutaFotoGuardada = null;
 
-                // 1. SI HI HA FOTO EN BASE64, LA GUARDEM A UNA CARPETA DEL SERVIDOR
-                if (!string.IsNullOrEmpty(dto.FotoBase64))
+                // 1. SI HI HA FOTO ADJUNTA, LA GUARDEM A UNA CARPETA DEL SERVIDOR DIRECTAMENT
+                if (dto.FotoFile != null && dto.FotoFile.Length > 0)
                 {
                     try
                     {
-                        // Determinem on guardar-ho. Creem una carpeta "ImatgesIncidencies" al mateix nivell que l'API.
-                        // Fem servir Path.Combine que funciona bé tant a Windows (locals) com a Ubuntu (producció).
                         var folderPath = Path.Combine(Directory.GetCurrentDirectory(), "ImatgesIncidencies");
-
-                        // Si la carpeta no existeix, la creem.
                         if (!Directory.Exists(folderPath))
                         {
                             Directory.CreateDirectory(folderPath);
                         }
 
-                        // Generem un nom únic per a la foto amb la data i l'ID de l'incidència
-                        var fileName = $"incidencia_{dto.IdIncidencia}_{DateTime.Now:yyyyMMddHHmmss}.jpg";
+                        // Generem un nom únic amb l'extensió original o jpg per defecte
+                        var extension = Path.GetExtension(dto.FotoFile.FileName);
+                        if (string.IsNullOrEmpty(extension)) extension = ".jpg";
+                        
+                        var fileName = $"incidencia_{dto.IdIncidencia}_{DateTime.Now:yyyyMMddHHmmss}{extension}";
                         var fullPath = Path.Combine(folderPath, fileName);
 
-                        // Convertim el Base64 de l'Android de tornada a bits (bytes) i el guardem
-                        byte[] imageBytes = Convert.FromBase64String(dto.FotoBase64);
-                        await File.WriteAllBytesAsync(fullPath, imageBytes);
+                        using (var stream = new FileStream(fullPath, FileMode.Create))
+                        {
+                            await dto.FotoFile.CopyToAsync(stream);
+                        }
 
-                        // Aquesta és la ruta relativa que guardarem a la BBDD
-                        // Exemple: "ImatgesIncidencies/incidencia_1_20260315.jpg"
                         rutaFotoGuardada = Path.Combine("ImatgesIncidencies", fileName).Replace("\\", "/");
                     }
                     catch (Exception ex)
                     {
-                        // Si peta al guardar la foto, pots decidir si vols aturar o tancar l'incidència igualment
-                        // De moment, aturem i retornem fals perquè el tècnic sàpiga que la foto no s'ha guardat
-                        Console.WriteLine($"Error al guardar la imatge: {ex.Message}");
+                        Console.WriteLine($"Error al guardar la imatge binaria: {ex.Message}");
                         return false;
                     }
                 }
@@ -131,9 +127,14 @@ namespace WConsumsAPI.Services
 
                 return true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return false;
+                Console.WriteLine($"EXCEPCIÓ AL TANCAR INCIDÈNCIA: {ex.Message}");
+                Console.WriteLine($"STACKTRACE: {ex.StackTrace}");
+                if (ex.InnerException != null) {
+                    Console.WriteLine($"INNER EXCEPTION: {ex.InnerException.Message}");
+                }
+                throw; // Bubble it up to the controller to return as 500 error body
             }
         }
     }

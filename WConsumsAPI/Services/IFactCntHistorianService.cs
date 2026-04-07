@@ -23,5 +23,17 @@ namespace WConsumsAPI.Services
 
         // Esborrar un registre (encara que en històrics no és habitual esborrar).
         Task<bool> DeleteAsync(int id);
+
+        // Obtenir dades filtrades per la gràfica M3
+        Task<List<ConsumFiltratDto>> GetConsumFiltratAsync(int idComptador, System.DateTime start, System.DateTime end);
+
+        // Obtenir el valor en temps real (Live) d'un comptador
+        Task<double> GetLiveValueAsync(string tagName);
+
+        // Obtenir els registres històrics d'un comptador per un dia concret
+        Task<List<FactCntHistorianDto>> GetRegistresPerDiaAsync(int idComptador, DateTime data);
+
+        // Actualitzar el valor d'un registre històric específic (per exemple, per corregir un error)
+        Task<bool> UpdateRegistreSeleccionatAsync(int idHistorian, float? nouValor);
     }
 }

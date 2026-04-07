@@ -18,11 +18,13 @@ namespace WConsumsAPI.Services
     {
         // Referència al context de la base de dades.
         private readonly AppDbContextDW _context;
+        private readonly AppDbContextAPP _contextApp;
 
         // Constructor que rep el context per injecció de dependències.
-        public FactCntHistorianService(AppDbContextDW context)
+        public FactCntHistorianService(AppDbContextDW context, AppDbContextAPP contextApp)
         {
             _context = context;
+            _contextApp = contextApp;
         }
 
         // Obté tots els elements de la taula FACT_CNT_HISTORIAN_V2.
@@ -127,7 +129,7 @@ namespace WConsumsAPI.Services
         public async Task<List<ConsumFiltratDto>> GetConsumFiltratAsync(int idComptador, DateTime start, DateTime end)
         {
             var list = new List<ConsumFiltratDto>();
-            var connection = _context.Database.GetDbConnection();
+            var connection = _contextApp.Database.GetDbConnection();
             if (connection.State != ConnectionState.Open) await connection.OpenAsync();
 
             using (var command = connection.CreateCommand())
@@ -151,6 +153,83 @@ namespace WConsumsAPI.Services
             }
             return list;
         }
+
+        //---------------------------------------------
+
+        public async Task<double> GetLiveValueAsync(string tagName)
+        {
+            var connection = _contextApp.Database.GetDbConnection();
+            if (connection.State != ConnectionState.Open) await connection.OpenAsync();
+
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "EXEC sp_AppConsums_GetLiveValue @TagNameId";
+                command.Parameters.Add(new SqlParameter("@TagNameId", tagName));
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    if (await reader.ReadAsync())
+                    {
+                        if (!reader.IsDBNull(0))
+                            return reader.GetDouble(0);
+                    }
+                }
+            }
+            return 0.0;
+        }
+
+        //---------------------------------------------
+
+        // Cercar els registres d'un dia (crida a sp_AppConsum_GetRegistresPerDia)
+        public async Task<List<FactCntHistorianDto>> GetRegistresPerDiaAsync(int idComptador, DateTime data)
+        {
+            var list = new List<FactCntHistorianDto>();
+            var connection = _contextApp.Database.GetDbConnection(); // Usem context APP per l'SP
+            if (connection.State != ConnectionState.Open) await connection.OpenAsync();
+
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "EXEC sp_AppConsum_GetRegistresPerDia @IdComptador, @Fecha";
+                command.Parameters.Add(new SqlParameter("@IdComptador", idComptador));
+                command.Parameters.Add(new SqlParameter("@Fecha", data.Date));
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        var dto = new FactCntHistorianDto
+                        {
+                            // Aquestes primeres normalment són les 0, 1, 2
+                            ID = reader.GetInt32(0),
+                            ValorDiferencial = reader.IsDBNull(1) ? 0 : reader.GetDouble(1),
+                            ValorDifMod = reader.IsDBNull(2) ? (double?)null : reader.GetDouble(2)
+                        };
+                        
+                        try {
+                            int idx = reader.GetOrdinal("FechaFin");
+                            if (!reader.IsDBNull(idx)) {
+                                dto.FechaFin = reader.GetDateTime(idx);
+                            }
+                        } catch { } // Si per alguna raó l'SP no torna la columna, no fem explotar res.
+
+                        list.Add(dto);
+                    }
+                }
+            }
+            return list;
+        }
+
+        // 2. Corregir un registre (crida a sp_AppConsum_UpdateRegistreModificat)
+        public async Task<bool> UpdateRegistreSeleccionatAsync(int idHistorian, float? nouValor)
+        {
+            var sql = "EXEC sp_AppConsum_UpdateRegistreModificat @IdHistorian, @NouValor";
+            int rowsAffected = await _contextApp.Database.ExecuteSqlRawAsync(sql,
+                new SqlParameter("@IdHistorian", idHistorian),
+                new SqlParameter("@NouValor", (object?)nouValor ?? DBNull.Value)
+            );
+            return rowsAffected > 0;
+        }
+
 
     }
 }

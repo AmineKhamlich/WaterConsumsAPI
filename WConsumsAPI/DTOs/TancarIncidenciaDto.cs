@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace WConsumsAPI.DTOs
 {
@@ -15,8 +15,8 @@ namespace WConsumsAPI.DTOs
         [Required(ErrorMessage = "La solució aplicada és obligatòria")]
         public string SolucioAdaptada { get; set; } = string.Empty;
 
-        // La foto la podem enviar com a text Base64 (codificada) o com a URL si la pugem primer.
-        // De moment ho deixem com a string per rebre el Base64 de la càmera.
-        public string? FotoBase64 { get; set; }
+        // Hem eliminat FotoBase64. A partir d'ara l'App Android pujarà els píxels en format
+        // binari real via Multipart/Form-Data gràcies a aquest IFormFile.
+        public Microsoft.AspNetCore.Http.IFormFile? FotoFile { get; set; }
     }
 }
