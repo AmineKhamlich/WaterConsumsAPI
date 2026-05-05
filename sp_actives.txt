@@ -1,9 +1,0 @@
-definition
-----------
-
--- =========================================================================
--- 2. SP per obtenir les Alarmes ACTIVES (Estat = 1) filtrades per Planta
--- =========================================================================
-CREATE   PROCEDURE [dbo
-
-(1 filas afectadas)
