@@ -25,10 +25,28 @@ namespace WConsumsAPI.Controllers
             _service = service;
         }
 
-        // NOMÉS ADMIN pot accedir a aquests endpoints, així que afegim l'autorització per al rol "Admin"
-        // 1. LLISTAR USUARIS (Només ho hauria de veure l'Admin a la App)
+        private bool EsSupervisorSenseSerAdmin()
+        {
+            return User.IsInRole("SUPERVISOR") && !User.IsInRole("ADMIN");
+        }
+
+        private async Task<bool> EsUsuariAdminAsync(int idUsuari)
+        {
+            var usuaris = await _service.GetAllAsync();
+            return usuaris.Any(u => u.Id == idUsuari && u.Rol.ToUpperInvariant() == "ADMIN");
+        }
+
+        private async Task<bool> EsUsuariAdminAsync(string username)
+        {
+            var usuaris = await _service.GetAllAsync();
+            return usuaris.Any(u => u.NomUsuari.ToUpperInvariant() == username.ToUpperInvariant()
+                                   && u.Rol.ToUpperInvariant() == "ADMIN");
+        }
+
+        // ADMIN i SUPERVISOR poden consultar usuaris.
+        // El supervisor necessita aquest llistat per assignar plantes i restablir contrasenyes.
         // GET: api/usuari
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN,SUPERVISOR")]
         [HttpGet]
         public async Task<ActionResult<List<UsuariResumDto>>> GetUsuarios()
         {
@@ -92,6 +110,36 @@ namespace WConsumsAPI.Controllers
             return Ok(new { message = "Usuari actualitzat correctament." });
         }
 
+        // ADMIN i SUPERVISOR poden modificar únicament les plantes assignades d'un usuari.
+        // No permet canviar rol, estat actiu ni cap altre camp sensible.
+        [Authorize(Roles = "ADMIN,SUPERVISOR")]
+        [HttpPut("actualitzar-plantes")]
+        public async Task<IActionResult> ActualitzarPlantesUsuari(UpdateUsuariPlantesDto dto)
+        {
+            if (EsSupervisorSenseSerAdmin() && await EsUsuariAdminAsync(dto.IdUsuari))
+            {
+                return Forbid();
+            }
+
+            var updateDto = new UpdateUsuariDto
+            {
+                IdUsuari = dto.IdUsuari,
+                NouRol = null,
+                Actiu = null,
+                CanviPasswordObligatori = null,
+                IdsPlantes = dto.IdsPlantes
+            };
+
+            var success = await _service.UpdateAsync(updateDto);
+
+            if (!success)
+            {
+                return BadRequest(new { message = "Error al actualitzar les plantes de l'usuari." });
+            }
+
+            return Ok(new { message = "Plantes assignades actualitzades correctament." });
+        }
+
         // QUALSEVOL USUARI LOGEJAT pot canviar la seva contrasenya
         // 5. CANVIAR CONTRASENYA (L'usuari canvia la seva pròpia contrasenya)
         // POST: api/usuari/change-password
@@ -109,12 +157,17 @@ namespace WConsumsAPI.Controllers
             return Ok(new { message = "Contrasenya actualitzada correctament." });
         }
 
-        [AllowAnonymous]
+        [Authorize(Roles = "ADMIN,SUPERVISOR")]
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword([FromBody] Dictionary<string, string> data)
         {
             // Com que des d'Android enviem un Map, aquí rebem un Dictionary o un DTO
             if (!data.ContainsKey("username")) return BadRequest();
+
+            if (EsSupervisorSenseSerAdmin() && await EsUsuariAdminAsync(data["username"]))
+            {
+                return Forbid();
+            }
 
             var success = await _service.ResetPasswordAsync(data["username"]);
             if (!success) return BadRequest(new { message = "L'usuari no existeix" });

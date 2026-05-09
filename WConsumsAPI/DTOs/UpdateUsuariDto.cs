@@ -12,4 +12,11 @@
         // NOU: Llista d'IDs actualitzats (si és null, l'API no tocarà les plantes)
         public List<int>? IdsPlantes { get; set; }
     }
+
+    // DTO limitat per permetre que ADMIN i SUPERVISOR només modifiquin plantes assignades.
+    public class UpdateUsuariPlantesDto
+    {
+        public int IdUsuari { get; set; }
+        public List<int> IdsPlantes { get; set; } = new();
+    }
 }
