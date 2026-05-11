@@ -4,6 +4,7 @@ using System.Data;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System;
+using System.Globalization;
 using WConsumsAPI.Data;
 using WConsumsAPI.DTOs;
 
@@ -74,6 +75,121 @@ namespace WConsumsAPI.Services
 
         public async Task<List<IncidenciaVistaDto>> GetHistoricAsync(string idsPlantes) =>
             await ExecutarSpLlistatAsync("sp_AppIncidencia_GetHistoricAlarms", idsPlantes);
+
+        public async Task<NotificacioIncidenciaDto?> GetNotificacioAsync(int idIncidencia)
+        {
+            var connection = _context.Database.GetDbConnection();
+            if (connection.State != ConnectionState.Open) await connection.OpenAsync();
+
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = @"
+                    SELECT TOP 1
+                        INC.ID_INCIDENCIA,
+                        INC.ID_DIM_CNT,
+                        INC.descripcio,
+                        INC.data_creacio,
+                        INC.data_detectat_H,
+                        INC.data_detectat_HH,
+                        INC.nivell_actual,
+                        INC.SP_H,
+                        INC.SP_HH,
+                        D.Descripcio AS DescripcioComptador,
+                        D.Planta AS Ubicacio,
+                        D.TagName,
+                        ISNULL((
+                            SELECT SUM(F.ValorDiferencial)
+                            FROM [DW].[dbo].[FACT_CNT_HISTORIAN_V2] F
+                            WHERE F.TagNameID = INC.ID_DIM_CNT
+                              AND F.FechaNoel = CAST(GETDATE() AS date)
+                        ), 0) AS ConsumRealAvui
+                    FROM [APP].[dbo].[APP_INCIDENCIA] INC
+                    LEFT JOIN [DW].[dbo].[DIM_CNT] D ON D.ID = INC.ID_DIM_CNT
+                    WHERE INC.ID_INCIDENCIA = @IdIncidencia;";
+
+                command.Parameters.Add(new SqlParameter("@IdIncidencia", idIncidencia));
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    if (!await reader.ReadAsync())
+                        return null;
+
+                    string GetString(string col)
+                    {
+                        var ordinal = reader.GetOrdinal(col);
+                        return reader.IsDBNull(ordinal) ? string.Empty : reader.GetString(ordinal);
+                    }
+
+                    int GetInt(string col)
+                    {
+                        var ordinal = reader.GetOrdinal(col);
+                        return reader.IsDBNull(ordinal) ? 0 : reader.GetInt32(ordinal);
+                    }
+
+                    int? GetNullableInt(string col)
+                    {
+                        var ordinal = reader.GetOrdinal(col);
+                        return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
+                    }
+
+                    DateTime? GetNullableDateTime(string col)
+                    {
+                        var ordinal = reader.GetOrdinal(col);
+                        return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
+                    }
+
+                    double GetDouble(string col)
+                    {
+                        var ordinal = reader.GetOrdinal(col);
+                        return reader.IsDBNull(ordinal) ? 0 : Convert.ToDouble(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+                    }
+
+                    var dto = new NotificacioIncidenciaDto
+                    {
+                        Id = GetInt("ID_INCIDENCIA"),
+                        IdDimCnt = GetInt("ID_DIM_CNT"),
+                        Comptador = GetString("DescripcioComptador"),
+                        Ubicacio = GetString("Ubicacio"),
+                        TagName = GetString("TagName"),
+                        DetallAlarma = GetString("descripcio"),
+                        DataCreacio = GetNullableDateTime("data_creacio") ?? DateTime.Now,
+                        HoraAvisH = GetNullableDateTime("data_detectat_H"),
+                        HoraCriticHH = GetNullableDateTime("data_detectat_HH"),
+                        NivellActual = GetInt("nivell_actual"),
+                        LimitH = GetNullableInt("SP_H"),
+                        LimitHH = GetNullableInt("SP_HH"),
+                        ConsumRealAvui = GetDouble("ConsumRealAvui")
+                    };
+
+                    dto.Gravetat = dto.NivellActual switch
+                    {
+                        >= 3 => "Critica",
+                        2 => "Alerta",
+                        1 => "Avis",
+                        _ => "Incidencia"
+                    };
+
+                    dto.Titol = string.IsNullOrWhiteSpace(dto.Comptador)
+                        ? $"Nova {dto.Gravetat}"
+                        : $"{dto.Gravetat}: {dto.Comptador}";
+
+                    var limits = dto.NivellActual >= 2
+                        ? $"limit HH {FormatNullableInt(dto.LimitHH)}"
+                        : $"limit H {FormatNullableInt(dto.LimitH)}";
+
+                    var ubicacio = string.IsNullOrWhiteSpace(dto.Ubicacio) ? "Sense planta" : dto.Ubicacio;
+                    var detall = string.IsNullOrWhiteSpace(dto.DetallAlarma) ? "Alarma de consum detectada" : dto.DetallAlarma;
+                    dto.Missatge = $"{ubicacio} - {detall}. Consum avui {dto.ConsumRealAvui:0.##} m3, {limits}.";
+
+                    return dto;
+                }
+            }
+        }
+
+        private static string FormatNullableInt(int? value)
+        {
+            return value.HasValue ? value.Value.ToString(CultureInfo.InvariantCulture) : "N/D";
+        }
 
         public async Task<bool> TancarIncidenciaAsync(TancarIncidenciaDto dto, int idUsuari)
         {

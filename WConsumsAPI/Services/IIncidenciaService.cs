@@ -1,4 +1,4 @@
-﻿using WConsumsAPI.DTOs;
+using WConsumsAPI.DTOs;
 
 namespace WConsumsAPI.Services
 {
@@ -9,6 +9,8 @@ namespace WConsumsAPI.Services
 
         // Metode per obtenir l'hisoric de les incidències d'una planta concreta
         Task<List<IncidenciaVistaDto>> GetHistoricAsync(string idsPlanta);
+
+        Task<NotificacioIncidenciaDto?> GetNotificacioAsync(int idIncidencia);
 
         // metode per tancar una incidencia concreta (per ID)
         Task<bool> TancarIncidenciaAsync(TancarIncidenciaDto dto, int idUsuari);

@@ -66,6 +66,28 @@ namespace WConsumsAPI.Controllers
             return Ok(result);
         }
 
+        [HttpGet("notificacio/{id}")]
+        public async Task<ActionResult<NotificacioIncidenciaDto>> GetNotificacio(int id)
+        {
+            var idsFiltre = GetPlantesDelToken();
+            if (idsFiltre != "ALL")
+            {
+                var visibles = await _service.GetActivesAsync(idsFiltre);
+                if (!visibles.Any(i => i.Id == id))
+                {
+                    return NotFound(new { message = "Incidencia no trobada." });
+                }
+            }
+
+            var result = await _service.GetNotificacioAsync(id);
+            if (result == null)
+            {
+                return NotFound(new { message = "Incidencia no trobada." });
+            }
+
+            return Ok(result);
+        }
+
 
         // Retorna la foto d'una alarma tancada com a string Base64
         // La foto s'emmagatzema com a ruta relativa al servidor (ex: ImatgesIncidencies/file.jpg)
@@ -118,4 +140,4 @@ namespace WConsumsAPI.Controllers
             }
         }
     }
-}
+}
